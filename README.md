@@ -5,10 +5,15 @@ comparing, and booking local professionals. This repository is a
 **standalone frontend**, independent of any other Servora repository. It
 contains no backend, no database, and no payment integration of its own.
 
-This is a **foundation milestone**: it establishes the application shell,
-design system, routing, and integration points the real customer
-experience will be built on — not the experience itself. See
-["What's intentionally not here"](#whats-intentionally-not-here) below.
+**Phase 1** established the application shell — design system, routing,
+navigation, and the auth/location/API integration points. **Phase 2**
+(this milestone) builds the first real marketplace experience on top of
+that shell: a customer home page, service/category browsing, provider
+discovery, and a working search architecture — all against clearly
+temporary mock data (see [Marketplace data](#marketplace-data) below),
+since no `servora-services`/`servora-provider`-style backend contract
+exists for this app to call yet. See
+["What's intentionally not here"](#whats-intentionally-not-here).
 
 ## Stack
 
@@ -19,6 +24,9 @@ experience will be built on — not the experience itself. See
   frontend (copied from `servora-web`'s token set) so the apps read as
   one product.
 - **lucide-react** — the app's icon library
+
+No new dependencies were added in Phase 2 — the marketplace UI, search
+state, and mock repositories are all built on the Phase 1 stack.
 
 ## Getting started
 
@@ -41,39 +49,44 @@ npm run start            # serve the production build (run build first)
 ## Environment variables
 
 See [`.env.example`](.env.example). Every value has a safe default — the
-app runs with zero configuration. No feature in this milestone calls a
-real backend endpoint; `NEXT_PUBLIC_API_BASE_URL` is plumbing for the API
-client layer (see below), not a live integration yet.
+app runs with zero configuration. No feature calls a real backend
+endpoint yet; `NEXT_PUBLIC_API_BASE_URL` is plumbing for the API client
+layer (see below), not a live integration.
 
 ## Project structure
 
 ```
 src/
-├── app/                    # Next.js App Router — layout, globals.css, and route placeholders:
-│   ├── page.tsx             #   / — home
-│   ├── search/               #   /search — discovery, list + map split-view demo
-│   ├── services/               #   /services — service catalog placeholder
-│   ├── providers/                #   /providers — provider discovery placeholder
-│   ├── bookings/                   #   /bookings — booking management placeholder
-│   ├── favorites/                    #   /favorites — saved items placeholder
-│   └── profile/                        #   /profile — account/auth states demo
+├── app/
+│   ├── page.tsx                    # / — home: hero search, categories, recommended services, featured providers
+│   ├── search/                     # /search — full search experience (query, category, filters, sort, list/map)
+│   ├── services/                   # /services — category browser
+│   ├── providers/                  # /providers — provider discovery
+│   ├── bookings/                   # /bookings — placeholder (unchanged from Phase 1)
+│   ├── favorites/                  # /favorites — placeholder (unchanged from Phase 1)
+│   └── profile/                    # /profile — auth states demo (unchanged from Phase 1)
 ├── components/
-│   ├── ui/                  # Design-system primitives (Button, Card, Input, Badge,
-│   │                        # Skeleton, EmptyState, ErrorState, Modal, ConfirmDialog, Toast, Container)
-│   └── layout/               # Navbar, BottomTabBar, Footer, Logo, and the shared PlaceholderPage shell
+│   ├── ui/                         # Design-system primitives (Button, Card, Input, Select, Badge,
+│   │                                # Skeleton, EmptyState, ErrorState, Modal, ConfirmDialog, Toast, Container)
+│   ├── layout/                     # Navbar, BottomTabBar, Footer, Logo, PlaceholderPage
+│   └── marketplace/                # Cross-feature presentation components — see below
 ├── features/
-│   └── discovery/             # Feature-oriented home for discovery-specific code;
-│       └── components/          # currently just DiscoveryLayout, the list+map split-view primitive
+│   ├── discovery/components/       # DiscoveryLayout — the list+map split-view primitive
+│   ├── services/                   # Category/service types, mock data, repository, category-icon lookup
+│   ├── providers/                  # Provider types, mock data, repository
+│   └── search/                     # SearchQuery/SearchResultsState types, useSearchState, searchRepository,
+│                                    # FiltersPanel, SortControl, ViewToggle, SearchResultsGrid, MapPanelPlaceholder
 ├── lib/
-│   ├── api/                 # Generic fetch client + error types — no domain endpoints yet (see below)
-│   ├── auth/                  # AuthProvider/useAuth/AuthGuard — session state foundation (see below)
-│   ├── location/                # LocationProvider/useLocation — location state foundation (see below)
-│   ├── env.ts                     # Centralized environment variable access
-│   └── utils.ts                     # cn() class merging (tailwind-merge, extended for the custom type scale)
-├── hooks/                  # useMediaQuery, useDisclosure, useFocusTrap
-├── constants/              # ROUTES, PRIMARY_NAV, MOBILE_TAB_NAV — no hardcoded path/link literals elsewhere
-├── types/                  # Small shared utility types (no speculative domain entities — see below)
-└── test/                   # renderWithProviders test helper
+│   ├── api/                        # Generic fetch client + error types — still no domain endpoints (see below)
+│   ├── auth/                       # AuthProvider/useAuth/AuthGuard — unchanged from Phase 1
+│   ├── location/                   # LocationProvider/useLocation — unchanged from Phase 1
+│   ├── mock/simulateLatency.ts     # Artificial delay for mock repositories, so loading states are real
+│   ├── env.ts
+│   └── utils.ts                    # cn() class merging
+├── hooks/                          # useMediaQuery, useDisclosure, useFocusTrap, useAsyncData
+├── constants/                      # ROUTES, PRIMARY_NAV, MOBILE_TAB_NAV
+├── types/                          # Small shared utility types (AsyncStatus, Nullable)
+└── test/                           # renderWithProviders test helper
 ```
 
 ## Design system
@@ -86,143 +99,184 @@ app is a named CSS custom property in
 **copied verbatim from `servora-web`** — the same convention
 `servora-provider-web` and `servora-services-web` already follow — so
 color, type, radius, and shadow stay one system across every Servora
-frontend. If `servora-web`'s tokens change, update this file to match.
+frontend.
 
 - **Typography** — [Fraunces](https://fonts.google.com/specimen/Fraunces)
   (display) paired with [Inter](https://fonts.google.com/specimen/Inter)
-  (UI/body), loaded via `next/font` (self-hosted, no layout shift). A
-  named scale (`text-display`, `text-h1`…`text-h4`, `text-body`,
-  `text-small`, `text-label`, `text-caption`) carries its own
-  line-height/letter-spacing/weight.
-- **Primitives** (`src/components/ui`) — Button (primary/secondary/ghost/
-  destructive, with hover/active/focus/disabled/loading states), Input,
-  Badge, Card, Container, Spinner, Skeleton, EmptyState, ErrorState,
-  Modal (focus-trapped, see `useFocusTrap`), ConfirmDialog, Toast/
-  ToastProvider.
-- **Focus states** — a single, visible `:focus-visible` ring is defined
-  once in `globals.css` and inherited everywhere; nothing suppresses the
-  default outline without replacing it.
-- **Motion** — deliberately minimal for this milestone. `globals.css`
-  still ships the shared `prefers-reduced-motion` kill-switch and
-  `data-motion-exempt` escape hatch (for spinners) used across Servora
-  apps, ready for richer motion later.
+  (UI/body), loaded via `next/font`.
+- **Primitives** (`src/components/ui`) — Button, Input, **Select** (new
+  in Phase 2, matching Input's pattern), Badge, Card, Container, Spinner,
+  Skeleton, EmptyState, ErrorState, Modal, ConfirmDialog, Toast.
+- **Focus states** — a single, visible `:focus-visible` ring, defined
+  once and inherited everywhere.
 
 ## Routing & navigation
 
-Placeholder routes exist for `/`, `/search`, `/services`, `/providers`,
-`/bookings`, `/favorites`, and `/profile` (`src/constants/routes.ts` is
-the single source of truth for these paths — components import from
-there rather than hardcoding strings). Each renders through the shared
-`PlaceholderPage` shell so navigating between them exercises real
-layout/routing consistently, not five one-off page designs.
+Routes: `/`, `/search`, `/services`, `/providers`, `/bookings`,
+`/favorites`, `/profile` (`src/constants/routes.ts`). `/`, `/search`,
+`/services`, and `/providers` are now real marketplace surfaces;
+`/bookings`, `/favorites`, and `/profile` remain Phase 1 placeholders —
+per scope, booking and favorites logic is a later phase.
 
-Navigation is customer-specific by design, not a relabeled provider nav:
+Navigation is unchanged from Phase 1: a desktop sticky header (nav
+links, search entry, location entry, Favorites/Bookings icons, account
+area) and, on mobile, a compact header plus an always-visible bottom tab
+bar (Home/Search/Bookings/Favorites/Profile).
 
-- **Desktop** (`lg` and up): a single sticky header — logo, primary text
-  links (Discover/Services/Providers), a search entry point, a location
-  entry point, quick Favorites/Bookings icon links, and an account area
-  (Log in/Sign up, or the signed-in customer once auth is real).
-- **Mobile**: a compact header (logo, search icon, location icon) plus
-  an always-visible **bottom tab bar** (Home/Search/Bookings/Favorites/
-  Profile) — the standard mobile marketplace pattern, not a hamburger
-  drawer, and not the scrollable-pill-row pattern `servora-provider-web`
-  uses for its dashboard nav.
+## Marketplace data
 
-## Location foundation
+**No backend contract exists yet** for services, providers, or search
+(no `servora-services`/`servora-provider`-equivalent API this app has
+verified) — so all marketplace content is temporary, clearly-marked mock
+data:
 
-Servora's map/location implementation already exists elsewhere (see
-`servora-provider-web`'s `GoogleMap`/`PlaceAutocomplete`/`googleMaps.ts`,
-built for provider onboarding) — this repo does **not** re-implement it.
-Instead, `src/lib/location` establishes the clean integration surface a
-future customer-facing map component plugs into:
+- `src/features/services/data/categories.mock.ts` and `services.mock.ts`
+- `src/features/providers/data/providers.mock.ts`
 
-- `LocationState` (`src/lib/location/types.ts`) — `status` (idle/loading/
-  resolved/unavailable), `permission` (prompt/granted/denied/
-  unsupported), the resolved `SelectedLocation` (coordinates + a display
-  address), and a human-readable `error`.
-- `LocationProvider`/`useLocation` — a real (not simulated) browser
-  geolocation permission flow via `requestCurrentLocation()`. Because no
-  reverse-geocoding integration exists yet, a browser-resolved location's
-  `displayAddress` is the raw coordinates formatted as text — real data,
-  not a fabricated address — until a real map/places component calls
-  `setLocation()` with an actual place.
-- The header's location button (`src/components/layout/LocationButton.tsx`)
-  exercises this end-to-end today.
+Every mock file opens with a comment marking it as temporary, and **no
+UI component imports these files directly.** Instead, each feature
+exposes a repository module —
+`src/features/services/api/servicesRepository.ts` and
+`src/features/providers/api/providersRepository.ts` — with async
+functions (`listCategories`, `listServices`, `listProviders`, …) that
+today resolve the mock data (through `simulateLatency()`, so loading
+states are genuinely exercised, not skipped) and later will make real
+`apiRequest()` calls with the exact same signatures. Swapping mock for
+real data is a change contained to these two files — no component needs
+to change.
+
+`distanceKm` is `null` on every mock record, and stays `null` in the UI
+unless a real distance is known — this app never fabricates a distance
+or implies a provider is nearby without real location data (see
+[Location integration](#location-integration) below).
+
+## Search architecture
+
+`src/features/search/types.ts` defines the full query and results shape:
+
+- `SearchQuery` — `query`, `category`, `sort`, `filters`, `viewMode`, all
+  flat primitives so the shape maps cleanly onto
+  `/search?q=&category=` URL params later.
+- `SearchResultsState` — `status` (`AsyncStatus`), `items`
+  (`SearchResultItem[]`, a `{kind:"service"}|{kind:"provider"}` union),
+  `error`.
+
+`src/features/search/state/useSearchState.ts` owns this entire
+lifecycle in one hook — no component scatters query/filter/sort/results
+state on its own. It re-runs `searchRepository.search()` whenever the
+query text, category, sort, or filters change (not `viewMode`, which
+only toggles whether the map panel renders), using React 19's async
+`startTransition` for the loading indicator rather than a manual
+`setState("loading")` inside an effect (the same pattern
+`AuthProvider`'s mount effect uses, and for the same reason — see the
+inline comments in both files).
+
+`src/features/search/api/searchRepository.ts` combines the service and
+provider repositories, then filters/sorts the combined list in memory.
+This local filtering logic is isolated here — not in any component —
+specifically so it can be deleted in favor of a real search endpoint
+later without touching the UI. A distance filter never excludes an item
+whose distance is unknown (excluding it would hide real results just
+because location data doesn't exist yet, which would be dishonest).
+
+**URL sync today is one-directional and intentionally minimal**: `/search`
+reads `q` and `category` from the URL once on load (`src/app/search/page.tsx`
+→ `SearchPageClient`) to seed `useSearchState`'s initial values — enough
+to make category cards and the home search bar's submit action actually
+work — but the query never writes itself back to the URL as the user
+types/filters. Full two-way sync wasn't built, per scope ("do not
+over-engineer URL synchronization if it is not necessary yet").
+
+## Marketplace components
+
+`src/components/marketplace/` — used from Home, `/search`, `/services`,
+and `/providers` today, and meant for any future recommendation surface:
+
+- **ServiceCard** / **ProviderCard** — image placeholder, name, category,
+  provider name (services) or verification badge (providers), rating +
+  review count, price (services) or service area (providers), a distance
+  line that only renders when `distanceKm` is known, and a CTA.
+- **CategoryCard** — links to `/search?category=<slug>`.
+- **RatingStars**, **PlaceholderThumbnail** (a deterministic,
+  brand-palette placeholder — never presented as a real photo),
+  **AsyncCardGrid** (the shared loading/empty/error/success grid every
+  discovery surface renders through), **CardSkeletons**, **SearchBar**.
+
+**No service or provider detail page exists yet** (a later phase, same
+as booking) — rather than link to a route that doesn't exist, each
+card's CTA shows an honest "not available yet" toast, the same pattern
+already used by `/profile`'s Log in/Sign up buttons in Phase 1.
+
+## Location integration
+
+Unchanged from Phase 1's `src/lib/location` foundation — this phase
+*uses* it rather than extending it. `/providers` and `/search`'s map
+panel both read `useLocation()` and reflect its real state honestly (no
+fake address, no fake "near you" claim); the header's location button
+still exercises the real browser geolocation permission flow end to end.
 
 ## Authentication foundation
 
-No customer authentication backend is implemented or connected yet — see
-`src/lib/auth/api.ts` for exactly what exists and why. What's here is the
-**architecture** a real integration will slot into without changing any
-consuming component:
-
-- `AuthStatus`: `"loading" | "authenticated" | "unauthenticated"`.
-- `AuthProvider`/`useAuth()` — resolves a session on mount via
-  `getSession()`, which is currently a stub that always resolves
-  `{ authenticated: false }`. Any thrown/rejected session check is also
-  treated as unauthenticated — this app never assumes a customer is
-  logged in on error or absence of data.
-- `AuthGuard` — the shape a future protected route (bookings, favorites,
-  profile) will wrap itself in. Not applied to any route yet, since there's
-  no real session to gate against — see `/profile`, which demonstrates
-  all three states (loading/signed-out/signed-in) directly instead.
+Unchanged from Phase 1 — see `src/lib/auth`. Still no real backend call;
+`/profile` still demonstrates all three states directly.
 
 ## API layer
 
-`src/lib/api/client.ts` is the one `fetch()` wrapper every future
-domain module should build on — components should never call `fetch()`
-directly. It targets the API Gateway (`env.apiBaseUrl`) with
-`credentials: "include"`, a request timeout, and the shared
-`{ error: { code, message, requestId } }` envelope / `ApiError` handling
-used across Servora frontends. **No domain endpoints are wired up** —
-this milestone doesn't invent a backend contract for services, providers,
-bookings, or favorites. Adding a real feature means adding its own typed
-module (e.g. `lib/api/services.ts`) on top of this client once a verified
-backend contract exists to call.
+`src/lib/api/client.ts` — unchanged from Phase 1, still not connected to
+any domain endpoint. Phase 2's marketplace data flows through the mock
+repositories described above, not through this client, since no real
+services/providers/search contract exists yet to call.
 
 ## Reusable UI states
 
-`Skeleton`, `EmptyState`, `ErrorState` (with an optional retry action),
-`Spinner`, `Modal`/`ConfirmDialog`, and `Toast` are generic and used
-across the placeholder routes today (e.g. `/services`'s skeleton grid,
-`/search` and `/providers`'s `EmptyState`, `/profile`'s loading/error
-handling) so every future feature reaches for the same states instead of
-re-inventing them.
-
-## Discovery layout
-
-`src/features/discovery/components/DiscoveryLayout.tsx` is the layout
-primitive discovery pages (search, services, providers) will share once
-they pair a results list with a map: full-width when no map panel is
-given, or a list + sticky map split (stacked below `lg`) when one is.
-`/search` demonstrates it today with a placeholder map panel — no map
-implementation is wired in.
+`AsyncCardGrid` centralizes loading (skeletons)/empty/error(+retry)/success
+rendering for every discovery grid. `useAsyncData` (new in Phase 2,
+`src/hooks/useAsyncData.ts`) is the one safe "fetch on mount, track
+status, support retry" hook every marketplace section builds on, so the
+same effect-safety pattern (no synchronous `setState` inside an effect
+body) doesn't get re-solved per component.
 
 ## Testing
 
-[Vitest](https://vitest.dev) + [React Testing Library](https://testing-library.com/react):
-`cn()`'s Tailwind-merge behavior, `Button`'s interactive/loading/link
-states, `AuthProvider`'s loading→unauthenticated resolution, `NavLink`'s
-active-route detection, and `LocationProvider`'s real geolocation
-success/unsupported paths.
+[Vitest](https://vitest.dev) + [React Testing Library](https://testing-library.com/react).
+In addition to Phase 1's coverage:
+
+- `searchRepository` — text/category filtering, sorting (rating, price,
+  the "unpriced providers sort last" rule), the minimum-rating filter,
+  and that an unknown distance is never used to exclude a result.
+- `useAsyncData` — loading→success, loading→error, and retry.
+- `AsyncCardGrid` — loading (skeleton count), empty, error+retry, success.
+- `ServiceCard` / `ProviderCard` — core fields render, the
+  distance line only appears when known, the verified badge only appears
+  when true, and the CTA's honest toast.
+- `CategoryCard` — renders and links to the right `/search` href.
+- `HomePage` — hero, all three sections render, and each resolves real
+  mock data.
+- `SearchPageClient` — initial render, seeding from a URL query, live
+  search-as-you-type, category-selection filtering, and the empty state
+  for a query that matches nothing.
+- `BottomTabBar` — every destination links correctly and marks the
+  active route (the practical proxy available for verifying mobile
+  navigation under jsdom, which can't evaluate the CSS breakpoints that
+  actually show/hide it).
 
 ## What's intentionally not here
 
-Per scope, this milestone is the application shell — not the customer
-experience itself:
-
-- **No real backend integration.** Auth, services, providers, bookings,
-  and favorites all have their state/architecture in place but no live
-  data. Nothing fabricates a fake logged-in state or invented data to
-  fill the gap.
-- **No search, booking, review, notification, or provider-matching
-  logic.** Their routes exist so navigation and layout can be verified
-  ahead of those features, each showing an honest empty state instead.
-- **No map implementation.** The location foundation's integration
-  points are ready for the existing map/places work to plug into; this
-  repo doesn't re-build it.
-- **No provider-side concepts.** Provider dashboards, catalog management,
-  provider onboarding, business management, and provider analytics
-  belong to `servora-provider-web`, not here.
-#   s e r v o r a - c u s t o m e r - w e b  
- 
+- **No real backend integration.** Every marketplace list, card, and
+  filter reads from the mock repositories described above — nothing
+  here calls `servora-services`, `servora-provider`, or any other
+  backend, because no verified contract exists yet for this app to call.
+- **No service or provider detail pages, and no booking flow.** Card
+  CTAs show an honest "not available yet" toast instead of a dead link.
+  Later phases.
+- **No real map.** `/search`'s map panel is the same kind of integration
+  seam as Phase 1 — ready for the existing map/places implementation,
+  not rebuilt here.
+- **No availability filtering.** The Availability filter control exists
+  in `/search`'s filters panel but is disabled with a "Coming soon" hint
+  — there's no availability/scheduling data model yet to filter against.
+- **No full two-way URL sync for search state** — see
+  [Search architecture](#search-architecture) above.
+- **No provider-side concepts.** Provider dashboards, catalog
+  management, onboarding, business management, and analytics belong to
+  `servora-provider-web`/`servora-services-web`, not here.
